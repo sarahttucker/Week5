@@ -1,0 +1,197 @@
+---
+title: "Canadian Public Health Agency"
+author: "SarahTucker"
+date: "February 6, 2019"
+output: html_document
+---
+##Blood Sample Testing
+###Ellis Hall Rm 333., Kingston, ON
+***
+*Referral & Patient Info*
+
+**Case #BIOL432A5 - 06-Feb-2019**
+
+**Patient ID: 432A56F2019**
+
+John Doe
+
+Sex: M, D.O.B: 01/01/2001 
+
+***
+
+Dear Dr. Coulatti,
+
+On February 6th 2019 we examined the requested protein and DNA sequences from the above patient.
+
+Our examination yielded the following findings:
+
+Upon high-throughput sequencing of the patient's biofluids, we found a matching DNA sequence to the original protein sample collected. Upon doing a nucleotide BLAST search, the top 40 hits of matching sequence are included below.
+
+
+```{r include=FALSE}
+#load in libraries
+suppressMessages(library(annotate))
+suppressMessages(library(BiocManager))
+suppressMessages(library(genbankr))
+suppressMessages(library(rentrez))
+suppressMessages(library(ape))
+suppressMessages(library(reshape2))
+suppressMessages(library(ggtree))
+suppressMessages(library(ggplot2))
+```
+
+```{r echo=FALSE}
+#assign foreign sequence to DNASeq object
+DNASeq<-"AGCAAAAGCAGGAGTTCAAAATGAATCCAAATCAGAAGATAACAACCATTGGATCAATCTGTATGGTAAT
+TGGAATAGTTAGCTTGATGTTACAAATTGGGAACATAATCTCAATATGGGTTAGTCATTCAATTCAAACA
+GGGAATCAACACCAGGCTGAACCATGCAATCAAAGCATTATTACTTATGAAAACAACACCTGGGTAAACC
+AGACATATGTCAACATCAGCAATACCAATTTTCTTACTGAGAAAGCTGTGGCTTCAGTAACATTAGCGGG
+CAATTCATCTCTTTGCCCCATTAGTGGATGGGCTGTATACAGTAAGGACAACGGTATAAGAATCGGTTCC
+AAGGGGGATGTGTTTGTTATAAGAGAGCCGTTCATCTCATGCTCCCACTTGGAATGCAGAACTTTCTTTT
+TGACTCAGGGAGCCTTGCTGAATGACAAGCATTCTAATGGGACCGTCAAAGACAGAAGCCCTCACAGAAC
+ATTAATGAGTTGTCCCGTGGGTGAGGCTCCTTCCCCATACAACTCGAGGTTTGAGTCTGTTGCTTGGTCG
+GCAAGTGCTTGTCATGATGGCACTAGTTGGTTGACAATTGGAATTTCTGGCCCAGACAATGGGGCTGTGG
+CTGTATTGAAATACAATGGCATAATAACAGACACTATCAAGAGTTGGAGGAACAACATAATGAGAACTCA
+AGAGTCTGAATGTGCATGTGTAAATGGCTCTTGCTTTACTGTTATGACTGATGGACCAAGTAATGGGCAG
+GCTTCATACAAAATCTTCAGAATAGAAAAAGGGAAAGTAGTTAAATCAGCCGAATTAAATGCCCCTAATT
+ATCACTATGAGGAGTGCTCCTGTTATCCTGATGCTGGAGAAATCACATGTGTGTGCAGGGATAACTGGCA
+TGGCTCAAATCGGCCATGGGTATCTTTCAATCAAAATTTGGAGTATCGAATAGGATATATATGCAGTGGA
+GTTTTCGGAGACAATCCACGCCCCAATGATGGGACAGGCAGTTGTGGTCCGGTGTCCCCTAAAGGGGCAT
+ATGGAATAAAAGGGTTCTCATTTAAATACGGCAATGGTGTTTGGATCGGGAGAACCAAAAGCACTAATTC
+CAGGAGCGGCTTTGAAATGATTTGGGATCCAAATGGATGGACTGGTACGGACAGTAATTTTTCAGTAAAG
+CAAGATATTGTAGCTATAACCGATTGGTCAGGATATAGCGGGAGTTTTGTCCAGCATCCAGAACTGACAG
+GATTAGATTGCATAAGACCTTGTTTCTGGGTTGAGCTAATCAGAGGGCGGCCCAAAGAGAGCACAATTTG
+GACTAGTGGGAGCAGCATATCCTTTTGTGGTGTAAATAGTGACACTGTGGGTTGGTCTTGGCCAGACGGT
+GCTGAGTTGCCATTCACCATTGACAAGTAGTTTGTTCAAAAAACTCCTTGTTTCTACT"
+
+#Blast the DNA sequence using blastn (because nucleotides), 
+#list limit of 40 with the output as a data frame
+BlastDNA<-blastSequences(DNASeq,database = "nr", as = 'data.frame', program="blastn",
+                             hitListSize=40, timeout=180)
+
+#take hit sequences (and accession numbers) and put into dataframe
+DNADF<-data.frame(ID = BlastDNA$Hit_accession,
+                         Seq = BlastDNA$Hsp_hseq, stringAsFactors = FALSE)
+#read in the hit accession numbers
+DNAGB<-read.GenBank(BlastDNA$Hit_accession)
+```
+
+```{r}
+#Use accession numbers to figure out what species the matches belong to 
+attr(DNAGB, "species")
+```
+
+```{r echo=FALSE}
+#Split up the sequences
+DNAHitCols <- sapply(as.character(DNADF$Seq), strsplit, split="")
+
+#Apply the sequence names and hit number to the sequence, ensure the type is a DNAbin
+#lower number = higher identity..
+names(DNAHitCols)<- paste(1:nrow(DNADF), DNADF$ID, sep = "_")
+DNAHitCols <- as.DNAbin(DNAHitCols)
+
+#visualize gap length to ensure no other parameters need to be set
+#as the gap lengths do not appear to be particularly large, I will not be altering the selection criteria
+SeqLen<-as.numeric(lapply(DNAHitCols,length))
+```
+
+Sequence lengths were called from original blast, and gaps were visualized in a histogram format to ensure none needed to be excluded from further analysis
+
+```{r}
+#confirm sequence lengths are approximately equal
+BlastDNA$Hit_len
+
+#plot gap lengths in histogram format
+qplot(SeqLen, ylab="Gap Length in basepairs", xlab="Sequence length")
+```
+
+**Figure 1.** Visualization of gap lengths.
+
+Alignments were then checked, the output of which we have included below.
+
+```{r}
+#visual representation of alignment 
+DNAAlign<-muscle(DNAHitCols,quiet=F)
+checkAlignment(DNAAlign, what = 1)
+```
+
+**Figure 2.** Alignment plot of top 40 sequence hits from nucleotide blast search. 
+
+Our patient query sequence matches with high identity to an [H5N1](https://www.who.int/influenza/human_animal_interface/avian_influenza/h5n1_research/faqs/en/) virus, otherwise known as "bird flu". According to the World Health Organization, the mortality rate of those infected with this pathogen is 60%. Exercise extreme caution; patient should seek immediate medical attention.
+
+#Appendix 1.
+```{r echo=FALSE}
+#compute matrices of pairwise distances from sequences.. 3 different times utilizing 3 different models of
+#calculation
+DNADM<-dist.dna(DNAAlign,model="TN93")
+DNADMmat<-as.matrix(DNADM)
+DNADat<-melt(DNADMmat)
+
+DNADMk80<-dist.dna(DNAAlign,model="k80")
+DNADMmatk80<-as.matrix(DNADMk80)
+DNADatk80<-melt(DNADMmatk80)
+
+DNADMf84<-dist.dna(DNAAlign,model="f84")
+DNADMmatf84<-as.matrix(DNADMf84)
+DNADatf84<-melt(DNADMmatf84)
+```
+
+```{r}
+#plot the first of 3 distance matrices using ggplot.. visualizes the matrix data
+#k80
+ggplot(data=DNADatk80,aes(x=Var1,y=Var2,fill=value))+geom_tile()+
+  scale_fill_gradientn(colours=c("white","blue","green","red"))
+
+```
+
+**Figure 3.** Visualization of pairwise distance matrix using the K80 model.
+
+```{r}
+#f84 model visualizatoin
+ggplot(data=DNADatf84,aes(x=Var1,y=Var2,fill=value))+geom_tile()+
+  scale_fill_gradientn(colours=c("white","blue","green","red"))
+```
+
+**Figure 4.** Visualization of pairwise distance matrix using the F84 model.
+
+```{r}
+#tn93 model visualization
+ggplot(data=DNADat,aes(x=Var1,y=Var2,fill=value))+geom_tile()+
+  scale_fill_gradientn(colours=c("white","blue","green","red"))
+```
+
+**Figure 5.** Visualization of pairwise distance matrix using the TN93 model. 
+
+While the graphs do not appear visually different, each model has a unique way of calculating pairwise distances with respect to the assumptions they make, and what kind of substitutions they consider.
+
+[The K80 model](https://en.wikipedia.org/wiki/Models_of_DNA_evolution#K80_model_(Kimura_1980)) considers transitions and transversions as substitutions with different probabilities (transition being a purine to purine, or pyrimidine to pyrimidine, while transversions are a purine to pyrimidine or vica versa). This model also assumes transition and transversion rates are equal for a DNA sequence, and that all bases are equally frequent.
+
+[The F84 model](https://en.wikipedia.org/wiki/Models_of_DNA_evolution#HKY85_model_(Hasegawa,_Kishino_and_Yano_1985)) combines K80 and F81 models into one that differentiates between transition and transversion rates that also relaxes the assumptions of equal base frequencies made by the k80 model.
+
+[The TN93 model](https://en.wikipedia.org/wiki/Models_of_DNA_evolution#TN93_model_(Tamura_and_Nei_1993)) estimates base frequencies from the data used (i.e they are not assumed to be equal/allows unequal base frequencies). Different transitions (i.e. A<->G **or** C<->T) and transversions are also allowed to have different rates, which is different from the F84 model in which all transitions, and all transversions have the same rates.
+
+With this info in mind, I believe the TN93 model is the most effective to use out of the three given, as it has the most relaxed parameters. By this I mean that in real DNA sequences, assuming the base frequencies are equal isn't a fair assumption in most cases. Likewise, having the same rates assumed for transitions/transversions is also not likely to be representative of what actually occurs. **Figure 3-5 do not look strikingly different**, and **even when looking at the raw matrix data values only appear to differ by** a maximum of 0.00009, or in other words, **a very small amount**. *These differences may be more pronounced in other data sets*, but regardless, I have chosen model TN93 for the following phylogenetic trees.
+
+
+```{r}
+#neighbour joining algorithm to build phylogenetic tree
+DnaTree<-nj(DNADM)
+ggtree(DnaTree) + geom_tiplab(size = 2)
+
+```
+
+**Figure 6.** Phylogenetic tree of blast searches built using Neighbour Joining algorithms.
+
+```{r}
+#Minimum evolution algorithm to build phylogenetic tree
+DnaTreeME<-fastme.bal(DNADM)
+ggtree(DnaTreeME) + geom_tiplab(size = 2)
+```
+
+**Figure 7.** Phylogenetic tree of blast searches using Minimum Evolution algorithms.
+
+[Neighbour joining methods](https://en.wikipedia.org/wiki/Neighbor_joining) (NJ) is a bottom up clustering method for creating phylogenetic trees. It is usually used for trees based on DNA or protein sequences, and this method requires knowledge of the distance between each pair of species in order to form the tree.
+
+In [Minimum evolution methods](https://www.megasoftware.net/web_help_7/rh_minimum_evolution.htm), (ME) distance measures that correct for multiple hits at the same sites are used, and an overall tree that displays the smallest value of the sum of all branches (S) is chosen as the correct tree. When sample sizes are large, NJ and ME trees are usually the same, but this is not the case when the number of taxa is small (this is what we observe in Figure 6 and 7).
+
+In general, it has been suggested that when a long DNA or AA sequence is used, the ME tree is preferable, while when using a small nucleotide or AA sequence, the NJ method generates the correct topology more often. Since the sequence in question in this case is only ~1400 base pairs in length, it might be **more advantageous to utilize the NJ method to garner a more accurate representation of its phylogenetic relationship**.
